@@ -1,0 +1,156 @@
+[
+  {
+    "id": "SES-101",
+    "created_at": "2026-10-14T09:00:00Z",
+    "title": "Weekly Strategy Session",
+    "participants": [
+      { "name": "Dr. Sara Hegy", "email": "sara@genxacademy.com", "is_team_member": true },
+      { "name": "Mark D.", "email": "mark@techcorp.io", "is_team_member": false }
+    ],
+    "transcript": [
+      {
+        "timestamp": "00:00:15",
+        "speaker": "Mark D.",
+        "text": "Hey Sara. Honestly, I'm completely underwater this week. I thought promoting two directors would give me breathing room, but everything is still bottlenecked on my desk. I'm reviewing every client slide deck."
+      },
+      {
+        "timestamp": "00:00:45",
+        "speaker": "Dr. Sara Hegy",
+        "text": "Look, Mark, micromanagement is almost never an ego problem. It is an information architecture breakdown. When you step back in, you're not doing it because you crave control; you're doing it because your system is bleeding signal. That friction is burning out your nervous system."
+      },
+      {
+        "timestamp": "00:01:20",
+        "speaker": "Mark D.",
+        "text": "That hits home. But if I don't check their decks, minor quality bugs slip through to enterprise accounts, and we lose credibility."
+      },
+      {
+        "timestamp": "00:01:55",
+        "speaker": "Dr. Sara Hegy",
+        "text": "The reality is, top performers don't fail because of capability; they fail against ambiguous standards. In our practice, we use a framework called Completion with Integrity. Before anyone starts a strategic initiative, you define the binary exit criteria upfront. You stop asking 'How is this going?' and start enforcing pre-agreed handoff constraints. When clarity goes up, surveillance drops to zero."
+      },
+      {
+        "timestamp": "00:44:10",
+        "speaker": "Mark D.",
+        "text": "Okay, that makes sense. So this week, I'm defining exit criteria for the enterprise audit and stepping away from the daily review."
+      },
+      {
+        "timestamp": "00:44:40",
+        "speaker": "Dr. Sara Hegy",
+        "text": "Exactly. Protect your cognitive bandwidth. Let the architecture do the quality control, not your adrenaline. We will audit the feedback loop next Tuesday."
+      }
+    ]
+  },
+  {
+    "id": "SES-102",
+    "created_at": "2026-10-15T14:30:00Z",
+    "title": "Executive Catch-up",
+    "participants": [
+      { "name": "Dr. Sara Hegy", "email": "sara@genxacademy.com", "is_team_member": true },
+      { "name": "Elena R.", "email": "elena@vanguardgrowth.com", "is_team_member": false }
+    ],
+    "transcript": [
+      {
+        "timestamp": "00:00:20",
+        "speaker": "Elena R.",
+        "text": "Hi Dr. Sara. I have to deliver tough feedback to my VP of Product tomorrow. He was a rockstar six months ago, but recently deliverables are late and the rest of the leadership team feels friction."
+      },
+      {
+        "timestamp": "00:00:55",
+        "speaker": "Dr. Sara Hegy",
+        "text": "The reality is that top performers don't decay overnight without structural friction. Before you schedule an uncomfortable confrontation, we run the Table and Shoulder Test. You have to isolate two distinct variables: neurological load versus operational drift."
+      },
+      {
+        "timestamp": "00:01:30",
+        "speaker": "Elena R.",
+        "text": "What do you mean by operational drift?"
+      },
+      {
+        "timestamp": "00:02:00",
+        "speaker": "Dr. Sara Hegy",
+        "text": "Has the company's operational velocity outpaced the scope of the seat he was hired into? Sit across from him as an architect, not an interrogator. Your primary diagnostic question should be: 'Where is the internal system fighting you right now?' If the breakdown is structural, we redesign the container. If the breakdown is capacity, we make a clean, dignified transition. No passive waiting."
+      },
+      {
+        "timestamp": "00:42:15",
+        "speaker": "Elena R.",
+        "text": "That completely reframes my stance. I was entering the room ready to defend my expectations, not inspect the container."
+      },
+      {
+        "timestamp": "00:42:45",
+        "speaker": "Dr. Sara Hegy",
+        "text": "When you regulate your own state first, you give them the safety to acknowledge reality. Run the diagnosis tomorrow and report back."
+      }
+    ]
+  },
+  {
+    "id": "SES-103",
+    "created_at": "2026-10-16T11:00:00Z",
+    "title": "Technical Sync & Integrations",
+    "participants": [
+      { "name": "Oussama K.", "email": "oussama@genxacademy.com", "is_team_member": true },
+      { "name": "Youssef M.", "email": "youssef@genxacademy.com", "is_team_member": true }
+    ],
+    "transcript": [
+      {
+        "timestamp": "00:00:10",
+        "speaker": "Oussama K.",
+        "text": "Hey Youssef, did you fix the webhook timeout on the Airtable synchronization node?"
+      },
+      {
+        "timestamp": "00:00:35",
+        "speaker": "Youssef M.",
+        "text": "Yeah, the issue was an unhandled promise rejection in the n8n Code node. When the CRM payload exceeded 50KB, Cloudflare killed the connection with an HTTP 524. I bumped the timeout limit to 120s and added error catching."
+      },
+      {
+        "timestamp": "00:01:15",
+        "speaker": "Oussama K.",
+        "text": "Great. What about the PostgreSQL database migration? Did you verify the pgvector HNSW index parameters?"
+      },
+      {
+        "timestamp": "00:01:45",
+        "speaker": "Youssef M.",
+        "text": "Yes, ef_construction is set to 64 and m is set to 16. I am deploying the docker container update to staging this afternoon. Let's finish the sprint tasks before the Friday release."
+      },
+      {
+        "timestamp": "00:28:30",
+        "speaker": "Oussama K.",
+        "text": "Sounds good. Push the git branch and I'll review your PR."
+      }
+    ]
+  },
+  {
+    "id": "SES-104",
+    "created_at": "2026-10-17T16:00:00Z",
+    "title": "Partnership Discovery Call",
+    "participants": [
+      { "name": "Sales Rep", "email": "partnerships@genxacademy.com", "is_team_member": true },
+      { "name": "David Clark", "email": "dclark@fintechhorizon.com", "is_team_member": false }
+    ],
+    "transcript": [
+      {
+        "timestamp": "00:00:15",
+        "speaker": "Sales Rep",
+        "text": "Thanks for taking the time, David. To start off, what motivated you to look into the GenX Leadership Academy for your executive bench?"
+      },
+      {
+        "timestamp": "00:00:45",
+        "speaker": "David Clark",
+        "text": "We just raised our Series B, and our engineering managers are having trouble scaling. But before we discuss curriculum, I need to understand your retainer pricing and minimum contract terms."
+      },
+      {
+        "timestamp": "00:01:25",
+        "speaker": "Sales Rep",
+        "text": "Understood. Our executive coaching cohorts typically run on a 6-month minimum retainer at $8,500 per executive per quarter, which includes bi-weekly 1:1 sessions and 24/7 strategic messaging access."
+      },
+      {
+        "timestamp": "00:02:10",
+        "speaker": "David Clark",
+        "text": "That's slightly above our quarterly training budget. Could we do an initial pilot with 2 directors for 3 months to evaluate ROI before committing to the full annual agreement?"
+      },
+      {
+        "timestamp": "00:29:40",
+        "speaker": "Sales Rep",
+        "text": "I can run that pilot proposal past finance. I'll send an amended scope of work and payment terms by Friday."
+      }
+    ]
+  }
+]
