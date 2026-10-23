@@ -1,11 +1,14 @@
 #!/bin/sh
 # First-boot seeding for the n8n container (used as the container entrypoint).
-# Imports the Postgres credential + both workflows once, then starts n8n.
+# Imports the Postgres + Groq credentials and both workflows once, then starts n8n.
 set -e
 
 MARKER=/home/node/.n8n/.rag_seeded
 
 if [ ! -f "$MARKER" ]; then
+  if [ -z "$GROQ_API_KEY" ]; then
+    echo "[bootstrap] WARNING: GROQ_API_KEY is empty - set it in .env, then re-seed (see README)."
+  fi
   echo "[bootstrap] First boot: seeding credential and workflows..."
 
   cat > /tmp/credentials.json <<EOF
@@ -23,6 +26,15 @@ if [ ! -f "$MARKER" ]; then
       "maxConnections": 10,
       "allowUnauthorizedCerts": false,
       "ssl": "disable"
+    }
+  },
+  {
+    "id": "groqheaderauth01",
+    "name": "Groq API",
+    "type": "httpHeaderAuth",
+    "data": {
+      "name": "Authorization",
+      "value": "Bearer ${GROQ_API_KEY}"
     }
   }
 ]

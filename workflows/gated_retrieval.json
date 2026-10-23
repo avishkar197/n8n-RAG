@@ -113,7 +113,7 @@
     {
       "parameters": {
         "operation": "executeQuery",
-        "query": "-- Independent cosine-similarity cutoffs per stream. similarity = 1 - cosine distance.\nWITH q AS (SELECT $1::vector AS v)\n(SELECT kv.id, kv.session_id, kv.stream_type, kv.content, kv.metadata,\n        1 - (kv.embedding <=> q.v) AS similarity\n   FROM knowledge_vault kv, q\n  WHERE kv.stream_type = 'framework'\n    AND 1 - (kv.embedding <=> q.v) >= 0.70\n  ORDER BY kv.embedding <=> q.v\n  LIMIT 2)\nUNION ALL\n(SELECT kv.id, kv.session_id, kv.stream_type, kv.content, kv.metadata,\n        1 - (kv.embedding <=> q.v) AS similarity\n   FROM knowledge_vault kv, q\n  WHERE kv.stream_type = 'voice_sample'\n    AND 1 - (kv.embedding <=> q.v) >= 0.65\n  ORDER BY kv.embedding <=> q.v\n  LIMIT 2);",
+        "query": "WITH q AS (SELECT $1::vector AS v),\nscored AS (\n  SELECT kv.id, kv.session_id, kv.stream_type, kv.content, kv.metadata,\n         1 - (kv.embedding <=> q.v) AS similarity\n    FROM knowledge_vault kv, q\n   WHERE (kv.stream_type = 'framework'    AND 1 - (kv.embedding <=> q.v) >= 0.70)\n      OR (kv.stream_type = 'voice_sample' AND 1 - (kv.embedding <=> q.v) >= 0.65)\n),\nbest_per_chunk AS (\n  SELECT DISTINCT ON (stream_type, md5(content)) *\n    FROM scored\n   ORDER BY stream_type, md5(content), similarity DESC\n)\n(SELECT * FROM best_per_chunk WHERE stream_type = 'framework'    ORDER BY similarity DESC LIMIT 2)\nUNION ALL\n(SELECT * FROM best_per_chunk WHERE stream_type = 'voice_sample' ORDER BY similarity DESC LIMIT 2);",
         "options": {
           "queryReplacement": "={{ [ '[' + $json.embeddings[0].join(',') + ']' ] }}"
         }
@@ -132,7 +132,9 @@
           "name": "Local pgvector"
         }
       },
-      "alwaysOutputData": true
+      "alwaysOutputData": true,
+      "notes": "Independent cutoffs: similarity = 1 - cosine distance (<=>). Frameworks >= 0.70, voice samples >= 0.65, LIMIT 2 each. Each chunk has several vectors (one per retrieval key), so DISTINCT ON keeps its best match. Always Output Data is on so zero rows still reaches the circuit breaker.",
+      "notesInFlow": true
     },
     {
       "parameters": {
@@ -221,12 +223,20 @@
     {
       "parameters": {
         "method": "POST",
-        "url": "http://ollama:11434/api/chat",
+        "url": "https://api.groq.com/openai/v1/chat/completions",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
         "sendBody": true,
         "specifyBody": "json",
-        "jsonBody": "={{ JSON.stringify({ model: 'llama3.2:1b', stream: false, options: { temperature: 0.4, num_ctx: 2048, num_predict: 420 }, messages: $json.messages }) }}",
+        "jsonBody": "={{ JSON.stringify({ model: 'openai/gpt-oss-20b', temperature: 0.4, max_tokens: 1500, reasoning_effort: 'low', messages: $json.messages }) }}",
         "options": {
-          "timeout": 600000
+          "timeout": 60000,
+          "batching": {
+            "batch": {
+              "batchSize": 1,
+              "batchInterval": 1500
+            }
+          }
         }
       },
       "id": "a1b2c3d4-0000-4000-8000-000000000033",
@@ -236,12 +246,21 @@
       "position": [
         1860,
         300
-      ]
+      ],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "groqheaderauth01",
+          "name": "Groq API"
+        }
+      },
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 5000
     },
     {
       "parameters": {
         "mode": "runOnceForAllItems",
-        "jsCode": "// Format Answer — attaches the retrieval provenance to the LLM answer.\nconst { frameworks, voices } = $('Build Persona Prompt').first().json;\nconst answer = String($input.first().json?.message?.content ?? '').trim();\n\nconst sources = [...frameworks, ...voices].map((r) => ({\n  session_id: r.session_id,\n  stream_type: r.stream_type,\n  similarity: Number(Number(r.similarity).toFixed(3)),\n}));\n\nconst footer = sources.map((s) => `${s.session_id} ${s.stream_type} (${s.similarity})`).join(', ');\n\nreturn [\n  {\n    json: {\n      output: answer ? `${answer}\\n\\n_Sources: ${footer}_` : 'Sorry, I could not generate an answer. Please try again.',\n      sources,\n    },\n  },\n];\n"
+        "jsCode": "// Format Answer — attaches the retrieval provenance to the LLM answer.\nconst { frameworks, voices } = $('Build Persona Prompt').first().json;\nconst answer = String($input.first().json?.choices?.[0]?.message?.content ?? '').trim();\n\nconst sources = [...frameworks, ...voices].map((r) => ({\n  session_id: r.session_id,\n  stream_type: r.stream_type,\n  similarity: Number(Number(r.similarity).toFixed(3)),\n}));\n\nconst footer = sources.map((s) => `${s.session_id} ${s.stream_type} (${s.similarity})`).join(', ');\n\nreturn [\n  {\n    json: {\n      output: answer ? `${answer}\\n\\n_Sources: ${footer}_` : 'Sorry, I could not generate an answer. Please try again.',\n      sources,\n    },\n  },\n];\n"
       },
       "id": "a1b2c3d4-0000-4000-8000-000000000034",
       "name": "Format Answer",

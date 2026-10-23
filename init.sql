@@ -21,9 +21,10 @@ CREATE TABLE IF NOT EXISTS knowledge_vault (
     created_at  TIMESTAMPTZ  NOT NULL DEFAULT now()
 );
 
--- Idempotent re-ingestion: the same chunk of the same session is upserted, not duplicated.
-CREATE UNIQUE INDEX IF NOT EXISTS knowledge_vault_chunk_uniq
-    ON knowledge_vault (session_id, stream_type, md5(content));
+-- Multi-vector retrieval: a chunk is stored once per retrieval key (metadata.retrieval_key),
+-- e.g. a framework takeaway + each client question it answers. Same chunk + same key = upsert.
+CREATE UNIQUE INDEX IF NOT EXISTS knowledge_vault_chunk_key_uniq
+    ON knowledge_vault (session_id, stream_type, md5(content), md5(metadata->>'retrieval_key'));
 
 CREATE INDEX IF NOT EXISTS knowledge_vault_stream_idx
     ON knowledge_vault (stream_type);

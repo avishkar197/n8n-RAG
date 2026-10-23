@@ -24,7 +24,7 @@ services:
       retries: 20
 
   # --------------------------------------------------------------------------
-  # Ollama: local embeddings (bge-m3, 1024-d) + local LLM (llama3.2).
+  # Ollama: local embeddings only (bge-m3, 1024-d). The LLM runs on Groq.
   # --------------------------------------------------------------------------
   ollama:
     image: ollama/ollama:latest
@@ -33,9 +33,9 @@ services:
     ports:
       - "11434:11434"
     environment:
-      # bge-m3 + llama3.2:1b together need ~2.5 GB; lower to "1" on very small machines.
-      OLLAMA_MAX_LOADED_MODELS: "2"
-      OLLAMA_KEEP_ALIVE: 5m
+      OLLAMA_MAX_LOADED_MODELS: "1"
+      # Model loads are slow on small CPU-only machines; keep them warm between workflow steps.
+      OLLAMA_KEEP_ALIVE: 60m
     volumes:
       - ollama:/root/.ollama
     healthcheck:
@@ -44,7 +44,7 @@ services:
       timeout: 10s
       retries: 30
 
-  # One-shot job: downloads the models into the ollama volume, then exits.
+  # One-shot job: downloads the embedding model into the ollama volume, then exits.
   ollama-pull:
     image: ollama/ollama:latest
     container_name: rag-ollama-pull
@@ -53,7 +53,7 @@ services:
         condition: service_healthy
     environment:
       OLLAMA_HOST: http://ollama:11434
-    entrypoint: ["/bin/sh", "-c", "ollama pull bge-m3 && ollama pull llama3.2:1b"]
+    entrypoint: ["/bin/sh", "-c", "ollama pull bge-m3"]
     restart: "no"
 
   # --------------------------------------------------------------------------
@@ -83,7 +83,16 @@ services:
       N8N_BLOCK_ENV_ACCESS_IN_NODE: "false"
       N8N_DIAGNOSTICS_ENABLED: "false"
       N8N_PERSONALIZATION_ENABLED: "false"
-      # Consumed by bootstrap.sh to create the n8n Postgres credential.
+      # Code nodes run in a JS task runner. On slow / memory-tight machines the runner
+      # can take >30s to start, so give its handshake and task requests more time.
+      N8N_RUNNERS_GRANT_TOKEN_TTL: "300"
+      N8N_RUNNERS_TASK_REQUEST_TIMEOUT: "300"
+      N8N_RUNNERS_TASK_TIMEOUT: "300"
+      # Expressions run in an isolated VM with a 5s default limit. Passing a 1024-d
+      # embedding through a query parameter can exceed that on a busy machine.
+      N8N_EXPRESSION_ENGINE_TIMEOUT: "60000"
+      # Consumed by bootstrap.sh to create the n8n Postgres + Groq credentials.
+      GROQ_API_KEY: ${GROQ_API_KEY:-}
       POSTGRES_HOST: postgres
       POSTGRES_USER: ${POSTGRES_USER:-rag}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-rag_password}
