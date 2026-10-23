@@ -1,0 +1,397 @@
+{
+  "name": "B - Gated Retrieval & Persona Synthesis",
+  "nodes": [
+    {
+      "parameters": {
+        "public": true,
+        "options": {
+          "responseMode": "lastNode",
+          "title": "Ask Dr. Sara",
+          "subtitle": "Grounded in documented coaching sessions"
+        }
+      },
+      "id": "a1b2c3d4-0000-4000-8000-000000000019",
+      "name": "Chat Trigger",
+      "type": "@n8n/n8n-nodes-langchain.chatTrigger",
+      "typeVersion": 1.1,
+      "position": [
+        0,
+        300
+      ],
+      "webhookId": "a3f1c0de-5b7a-4c1e-9d2f-7e6b8a9c0d11"
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "// Intent Router — intercepts greetings (and empty input) before any embedding / DB work happens.\nconst input = $input.first().json;\nconst question = String(input.chatInput ?? input.question ?? '').trim();\n\nconst GREETING =\n  /^(?:hi+|hello+|hey+|hiya|howdy|yo|greetings|good\\s+(?:morning|afternoon|evening)|what'?s\\s+up)(?:\\s+(?:there|sara|dr\\.?\\s*sara|team|everyone))?\\s*[!.,?]*$/i;\n\nconst intent = question === '' || GREETING.test(question) ? 'greeting' : 'question';\n\nreturn [{ json: { intent, question } }];\n"
+      },
+      "id": "a1b2c3d4-0000-4000-8000-000000000020",
+      "name": "Intent Router",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        220,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "c0nd-0000-4000-8000-000000000021",
+              "leftValue": "={{ $json.intent }}",
+              "rightValue": "greeting",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "a1b2c3d4-0000-4000-8000-000000000022",
+      "name": "Is Greeting?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        440,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "a55g-0000-4000-8000-000000000023",
+              "name": "output",
+              "type": "string",
+              "value": "Hello! I'm Dr. Sara's coaching assistant. Ask me about leadership topics from her sessions, for example delegation, giving difficult feedback, or handling an underperforming leader."
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "a1b2c3d4-0000-4000-8000-000000000024",
+      "name": "Static Greeting",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        700,
+        120
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://ollama:11434/api/embed",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ model: 'bge-m3', input: $json.question }) }}",
+        "options": {
+          "timeout": 600000
+        }
+      },
+      "id": "a1b2c3d4-0000-4000-8000-000000000025",
+      "name": "Embed Query",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        700,
+        420
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "-- Independent cosine-similarity cutoffs per stream. similarity = 1 - cosine distance.\nWITH q AS (SELECT $1::vector AS v)\n(SELECT kv.id, kv.session_id, kv.stream_type, kv.content, kv.metadata,\n        1 - (kv.embedding <=> q.v) AS similarity\n   FROM knowledge_vault kv, q\n  WHERE kv.stream_type = 'framework'\n    AND 1 - (kv.embedding <=> q.v) >= 0.70\n  ORDER BY kv.embedding <=> q.v\n  LIMIT 2)\nUNION ALL\n(SELECT kv.id, kv.session_id, kv.stream_type, kv.content, kv.metadata,\n        1 - (kv.embedding <=> q.v) AS similarity\n   FROM knowledge_vault kv, q\n  WHERE kv.stream_type = 'voice_sample'\n    AND 1 - (kv.embedding <=> q.v) >= 0.65\n  ORDER BY kv.embedding <=> q.v\n  LIMIT 2);",
+        "options": {
+          "queryReplacement": "={{ [ '[' + $json.embeddings[0].join(',') + ']' ] }}"
+        }
+      },
+      "id": "a1b2c3d4-0000-4000-8000-000000000026",
+      "name": "Gated SQL Query",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "position": [
+        920,
+        420
+      ],
+      "credentials": {
+        "postgres": {
+          "id": "pgvaultcred0001",
+          "name": "Local pgvector"
+        }
+      },
+      "alwaysOutputData": true
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "// Zero-Match Check — collapses the SQL result rows into one decision item.\n// The SQL node is set to \"Always Output Data\", so zero rows arrives as a single empty item.\nconst question = $('Intent Router').first().json.question;\n\nconst rows = $input\n  .all()\n  .map((i) => i.json)\n  .filter((r) => r.content); // drop the empty placeholder item\n\nconst frameworks = rows.filter((r) => r.stream_type === 'framework');\nconst voices = rows.filter((r) => r.stream_type === 'voice_sample');\n\nreturn [\n  {\n    json: {\n      question,\n      match_count: rows.length,\n      frameworks,\n      voices,\n    },\n  },\n];\n"
+      },
+      "id": "a1b2c3d4-0000-4000-8000-000000000027",
+      "name": "Zero-Match Check",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1140,
+        420
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "c0nd-0000-4000-8000-000000000028",
+              "leftValue": "={{ $json.match_count }}",
+              "rightValue": 0,
+              "operator": {
+                "type": "number",
+                "operation": "gt"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "a1b2c3d4-0000-4000-8000-000000000029",
+      "name": "Any Chunks Passed?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        1360,
+        420
+      ]
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "a55g-0000-4000-8000-000000000030",
+              "name": "output",
+              "type": "string",
+              "value": "No documented coaching frameworks match this topic."
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "a1b2c3d4-0000-4000-8000-000000000031",
+      "name": "Circuit Breaker Fallback",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        1640,
+        600
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "// Build Persona Prompt — positive few-shot prompt that mirrors Dr. Sara's voice.\nconst { question, frameworks, voices } = $input.first().json;\n\nconst SYSTEM = `You are Dr. Sara Hegy, an executive coach. You explain her coaching frameworks to a client in her own voice.\n\nHow Dr. Sara sounds:\n- She opens with a direct reframe (\"Look, ...\" or \"The reality is, ...\").\n- She uses short declarative sentences and architecture / system metaphors.\n- She names the framework, explains the idea in plain words, then closes with one concrete next step.\n- She keeps every claim grounded in the framework notes she is given.\n\nAnswer in 110-160 words, written as Dr. Sara speaking directly to the client.`;\n\n// Two worked examples (different topics than the knowledge base) show the tone to mirror.\nconst EXAMPLES = [\n  {\n    user: `Client question: My new team lead keeps missing handoffs. Should I just take the work back?\n\nFramework notes:\n- Framework: Clarity Before Control. Missed handoffs usually signal ambiguous standards, not low capability. Define the finish line in writing before work begins and agree on one checkpoint.\n\nVoice samples:\n- Look, most delays are not a motivation problem. They are a blueprint problem. When the standard is fuzzy, even your best people build in the dark.\n\nDr. Sara's answer:`,\n    assistant: `Look, taking the work back is the expensive move. A missed handoff is almost never a capability problem. It is a blueprint problem. Your team lead is building in the dark because the finish line was never made visible.\n\nThis is exactly what we call Clarity Before Control. You write down what \"done\" looks like before the work starts, then you agree on a single checkpoint. When the standard is clear, you stop chasing and the system starts doing the quality control for you.\n\nYour next step: before Friday, write the finish line for the next handoff in three sentences and walk your team lead through it.`,\n  },\n  {\n    user: `Client question: I keep absorbing my team's stress and I'm exhausted by Thursday. What do I do?\n\nFramework notes:\n- Framework: Regulate First. A leader's nervous system sets the temperature of the room. Reset your own state with a short pause before entering a hard conversation, then lead from there.\n\nVoice samples:\n- The reality is, your team reads your state faster than they read your words. When you regulate first, you give them the safety to be honest.\n\nDr. Sara's answer:`,\n    assistant: `The reality is, your team reads your state faster than they read your words. If you walk in carrying everyone's stress, the whole room runs hot.\n\nWe call this Regulate First. Your nervous system sets the temperature, so you reset it before you step into the hard conversation. A short pause, a slow breath, a clear intention for the meeting. Then you lead from there.\n\nYour next step: put a five-minute buffer before your two toughest meetings this week and use it to settle yourself first.`,\n  },\n];\n\nconst bullet = (rows) => rows.map((r) => `- ${r.content.replace(/\\n+/g, ' ')}`).join('\\n');\n\nconst context = [\n  'Framework notes:',\n  frameworks.length ? bullet(frameworks) : '- (no framework notes matched; stay with the voice samples below)',\n  '',\n  'Voice samples:',\n  voices.length ? bullet(voices) : '- (none)',\n].join('\\n');\n\nconst userPrompt = `Client question: ${question}\\n\\n${context}\\n\\nDr. Sara's answer:`;\n\nconst messages = [\n  { role: 'system', content: SYSTEM },\n  ...EXAMPLES.flatMap((e) => [\n    { role: 'user', content: e.user },\n    { role: 'assistant', content: e.assistant },\n  ]),\n  { role: 'user', content: userPrompt },\n];\n\nreturn [{ json: { ...$input.first().json, context, messages } }];\n"
+      },
+      "id": "a1b2c3d4-0000-4000-8000-000000000032",
+      "name": "Build Persona Prompt",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1640,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://ollama:11434/api/chat",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ model: 'llama3.2:1b', stream: false, options: { temperature: 0.4, num_ctx: 2048, num_predict: 420 }, messages: $json.messages }) }}",
+        "options": {
+          "timeout": 600000
+        }
+      },
+      "id": "a1b2c3d4-0000-4000-8000-000000000033",
+      "name": "Persona Synthesis",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1860,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "// Format Answer — attaches the retrieval provenance to the LLM answer.\nconst { frameworks, voices } = $('Build Persona Prompt').first().json;\nconst answer = String($input.first().json?.message?.content ?? '').trim();\n\nconst sources = [...frameworks, ...voices].map((r) => ({\n  session_id: r.session_id,\n  stream_type: r.stream_type,\n  similarity: Number(Number(r.similarity).toFixed(3)),\n}));\n\nconst footer = sources.map((s) => `${s.session_id} ${s.stream_type} (${s.similarity})`).join(', ');\n\nreturn [\n  {\n    json: {\n      output: answer ? `${answer}\\n\\n_Sources: ${footer}_` : 'Sorry, I could not generate an answer. Please try again.',\n      sources,\n    },\n  },\n];\n"
+      },
+      "id": "a1b2c3d4-0000-4000-8000-000000000034",
+      "name": "Format Answer",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2080,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "content": "## Workflow B: Gated Retrieval & Persona Synthesis\nChat -> **Intent Router** (greetings never touch the DB) -> embed -> **Gated SQL** (frameworks >= 0.70, voice >= 0.65, LIMIT 2 each) -> **Zero-Match circuit breaker** -> few-shot persona LLM.\nIf zero chunks pass the cutoffs, the fallback is returned and the **Persona Synthesis (LLM) node is never executed**.",
+        "height": 170,
+        "width": 900,
+        "color": 4
+      },
+      "id": "a1b2c3d4-0000-4000-8000-000000000035",
+      "name": "Note  Workflow B: Gated",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        0,
+        80
+      ]
+    }
+  ],
+  "connections": {
+    "Chat Trigger": {
+      "main": [
+        [
+          {
+            "node": "Intent Router",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Intent Router": {
+      "main": [
+        [
+          {
+            "node": "Is Greeting?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Is Greeting?": {
+      "main": [
+        [
+          {
+            "node": "Static Greeting",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Embed Query",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Embed Query": {
+      "main": [
+        [
+          {
+            "node": "Gated SQL Query",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Gated SQL Query": {
+      "main": [
+        [
+          {
+            "node": "Zero-Match Check",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Zero-Match Check": {
+      "main": [
+        [
+          {
+            "node": "Any Chunks Passed?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build Persona Prompt": {
+      "main": [
+        [
+          {
+            "node": "Persona Synthesis",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Persona Synthesis": {
+      "main": [
+        [
+          {
+            "node": "Format Answer",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Any Chunks Passed?": {
+      "main": [
+        [
+          {
+            "node": "Build Persona Prompt",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Circuit Breaker Fallback",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "id": "wfGatedRetriev01",
+  "versionId": "0ver51on-0000-4000-8000-000000000037",
+  "meta": {
+    "templateCredsSetupCompleted": true
+  },
+  "tags": []
+}
