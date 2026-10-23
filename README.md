@@ -3,7 +3,7 @@
 A local RAG pipeline in **n8n** backed by **PostgreSQL 16 + pgvector**.
 
 - **Workflow A (Ingestion & Semantic Firewall)** classifies each meeting transcript with an LLM. Only client-coaching sessions are allowed into the vector store. Internal-ops and sales calls are archived in a flat table and never embedded.
-- **Workflow B (Gated Retrieval & Persona Synthesis)** answers coaching questions in Dr. Sara's voice. Retrieval is gated by hard cosine-similarity cutoffs in SQL. When nothing passes the cutoffs, a circuit breaker returns a fixed fallback, and the LLM is never called.
+- **Workflow B (Gated Retrieval & Persona Synthesis)** answers coaching questions in Dr. Sara's voice. Retrieval is gated by hard cosine-similarity cutoffs in SQL. When nothing passes the cutoffs, a circuit breaker returns fixed fallback, and the LLM is never called.
 
 ```
                         ┌──────────────── Workflow A: Ingestion & Semantic Firewall ────────────────┐
