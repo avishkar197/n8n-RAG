@@ -45,6 +45,8 @@ Chat → Intent Router (regex) ─ greeting → Static Greeting            (no D
 │   └── gated_retrieval.json    # Workflow B
 ├── data/
 │   └── mock_transcripts.json   # the dataset (mounted read-only into n8n at /data)
+├── docs/
+│   └── screenshots/            # n8n execution screenshots used in the verification log
 └── README.md
 ```
 
@@ -118,7 +120,7 @@ docker compose down -v
 
 ## 2. Verification Log
 
-These logs come from real executions on 2026-10-23. They were taken from n8n's execution history (`execution_entity` / `execution_data`) and from `psql`.
+These logs and screenshots come from real executions on 2026-10-23. They were taken from n8n's execution history (`execution_entity` / `execution_data`) and from `psql`.
 
 ### ✅ Call 1 & Call 2 ingested into `knowledge_vault`
 
@@ -170,6 +172,10 @@ $ SELECT count(*) FROM knowledge_vault WHERE session_id IN ('SES-103','SES-104')
  0
 ```
 
+**Screenshot: Workflow A, execution #16.** The Ingestion Gate sends 2 items up the Approved branch (purge → distil → parse → embed → upsert → summary) and 2 items down to *Archive Rejected Session*. The output panel shows SES-103 and SES-104 archived with no embeddings generated.
+
+![Workflow A execution #16](docs/screenshots/workflow-a-ingestion-exec16.png)
+
 ### ✅ Greeting intercepted without any DB lookup
 
 Execution **#17** of *Workflow B* took 0.5 s.
@@ -204,6 +210,10 @@ The answer returned to the chat:
 
 The answer is grounded in SES-102 only. It uses the framework's steps and Dr. Sara's own phrasing from the voice samples ("The reality is…", "as an architect, not an interrogator", "No passive waiting").
 
+**Screenshot: Workflow B, execution #18.** The question takes the full path, and every node through *Persona Synthesis* and *Format Answer* ran. The Gated SQL passed 3 items, and the chat and output panels show the answer with its SES-102 sources.
+
+![Workflow B execution #18: coaching answer](docs/screenshots/workflow-b-coaching-answer-exec18.png)
+
 ### ✅ Off-domain question → circuit breaker fallback, LLM not called
 
 Execution **#19** of *Workflow B*:
@@ -218,6 +228,10 @@ output:    No documented coaching frameworks match this topic.
 
 *Build Persona Prompt* and *Persona Synthesis* do not appear in the list of executed nodes, so the LLM was never called.
 
+**Screenshot: Workflow B, execution #19.** The run ends at *Circuit Breaker Fallback*. *Build Persona Prompt*, *Persona Synthesis* and *Format Answer* stayed grey (not executed), and the chat shows the fixed fallback message.
+
+![Workflow B execution #19: circuit breaker](docs/screenshots/workflow-b-circuit-breaker-exec19.png)
+
 ### Retrieval behaviour across more questions
 
 These were run with Workflow B's exact gated SQL against the stored vault:
@@ -229,8 +243,6 @@ These were run with Workflow B's exact gated SQL against the stored vault:
 | How do I stop micromanaging my team? | SES-101 (1 framework + 2 voice) | 0.826 |
 | How do I fix my database index? | nothing → circuit breaker | – |
 | What should our pricing be for a 6-month retainer? | nothing → circuit breaker | – |
-
-> **Screenshots:** add your n8n canvas and chat screenshots to `docs/screenshots/` and link them here if you want visual evidence alongside the text logs.
 
 ---
 
